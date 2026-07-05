@@ -1,0 +1,46 @@
+.root {
+    -fx-font-family: "Microsoft YaHei", "SimHei", Arial, sans-serif;
+}
+
+.button {
+    -fx-cursor: hand;
+    -fx-font-weight: bold;
+}
+
+.button:hover {
+    -fx-opacity: 0.8;
+}
+
+.text-field, .password-field {
+    -fx-background-radius: 4;
+    -fx-border-radius: 4;
+}
+
+.text-area {
+    -fx-background-radius: 4;
+    -fx-border-radius: 4;
+}
+
+.text-area .content {
+    -fx-background-color: #1e1e1e;
+}
+
+.text-area .scroll-bar {
+    -fx-background-color: #2d2d2d;
+}
+
+.text-area .scroll-bar .thumb {
+    -fx-background-color: #555555;
+}
+
+.slider .thumb {
+    -fx-background-color: #3498db;
+}
+
+.slider .track {
+    -fx-background-color: #bdc3c7;
+}
+
+.slider .track:filled {
+    -fx-background-color: #3498db;
+}

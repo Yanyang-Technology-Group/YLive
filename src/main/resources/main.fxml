@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.*?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<VBox xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1"
+      fx:controller="cn.yanyn.ylive.MainController" spacing="10" style="-fx-padding: 15; -fx-background-color: #f5f5f5;">
+
+    <!-- 标题 -->
+    <Label text="🎬 Y Live v1.0.0" style="-fx-font-size: 20px; -fx-font-weight: bold; -fx-text-fill: #2c3e50;"/>
+
+    <!-- 三栏布局 -->
+    <HBox spacing="15" VBox.vgrow="ALWAYS">
+
+        <!-- 左栏: RTMP服务 -->
+        <VBox spacing="10" style="-fx-background-color: white; -fx-padding: 15; -fx-border-radius: 8; -fx-background-radius: 8; -fx-border-color: #dcdcdc;">
+            <Label text="📡 RTMP服务" style="-fx-font-size: 16px; -fx-font-weight: bold; -fx-text-fill: #2c3e50;"/>
+
+            <HBox spacing="10" alignment="CENTER_LEFT">
+                <Label text="端口:" prefWidth="60"/>
+                <TextField fx:id="rtmpPortField" text="1935" prefWidth="100"/>
+            </HBox>
+
+            <HBox spacing="10" alignment="CENTER_LEFT">
+                <Label text="流名:" prefWidth="60"/>
+                <TextField fx:id="streamNameField" text="live" prefWidth="150"/>
+            </HBox>
+
+            <HBox spacing="10" alignment="CENTER_LEFT">
+                <Button fx:id="startRtmpBtn" text="▶ 启动" style="-fx-background-color: #27ae60; -fx-text-fill: white;"/>
+                <Button fx:id="stopRtmpBtn" text="⏹ 停止" style="-fx-background-color: #e74c3c; -fx-text-fill: white;" disable="true"/>
+                <Label fx:id="rtmpStatusLabel" text="○ 离线" textFill="red"/>
+            </HBox>
+
+            <Label text="推流地址:" style="-fx-font-weight: bold;"/>
+            <Label fx:id="pushUrlLabel" text="rtmp://127.0.0.1:1935/live" style="-fx-background-color: #ecf0f1; -fx-padding: 5; -fx-font-family: monospace;"/>
+        </VBox>
+
+        <!-- 中栏: 字幕配置 -->
+        <VBox spacing="10" style="-fx-background-color: white; -fx-padding: 15; -fx-border-radius: 8; -fx-background-radius: 8; -fx-border-color: #dcdcdc;" HBox.hgrow="ALWAYS">
+            <Label text="✏️ 字幕配置" style="-fx-font-size: 16px; -fx-font-weight: bold; -fx-text-fill: #2c3e50;"/>
+
+            <HBox spacing="10" alignment="CENTER_LEFT">
+                <Label text="内容:" prefWidth="40"/>
+                <TextField fx:id="subtitleTextField" text="© 2026 直播" HBox.hgrow="ALWAYS"/>
+            </HBox>
+
+            <HBox spacing="10" alignment="CENTER_LEFT">
+                <Label text="字体:" prefWidth="40"/>
+                <TextField fx:id="fontPathField" editable="false" HBox.hgrow="ALWAYS"/>
+                <Button fx:id="browseFontBtn" text="浏览..."/>
+            </HBox>
+
+            <HBox spacing="10" alignment="CENTER_LEFT">
+                <Label text="字号:" prefWidth="40"/>
+                <Slider fx:id="fontSizeSlider" min="12" max="72" value="24" prefWidth="150"/>
+                <Label fx:id="fontSizeLabel" text="24px" prefWidth="50"/>
+                <ColorPicker fx:id="fontColorPicker" value="WHITE"/>
+                <CheckBox fx:id="shadowCheckBox" text="阴影" selected="true"/>
+            </HBox>
+
+            <Button fx:id="previewSubtitleBtn" text="预览字幕效果" style="-fx-background-color: #3498db; -fx-text-fill: white;" maxWidth="200"/>
+        </VBox>
+
+        <!-- 右栏: FRP配置 -->
+        <VBox spacing="10" style="-fx-background-color: white; -fx-padding: 15; -fx-border-radius: 8; -fx-background-radius: 8; -fx-border-color: #dcdcdc;">
+            <Label text="🔗 FRP穿透" style="-fx-font-size: 16px; -fx-font-weight: bold; -fx-text-fill: #2c3e50;"/>
+
+            <HBox spacing="10" alignment="CENTER_LEFT">
+                <Label text="服务器IP:" prefWidth="80"/>
+                <TextField fx:id="frpServerField" prefWidth="120"/>
+            </HBox>
+
+            <HBox spacing="10" alignment="CENTER_LEFT">
+                <Label text="端口:" prefWidth="80"/>
+                <TextField fx:id="frpPortField" text="7000" prefWidth="120"/>
+            </HBox>
+
+            <HBox spacing="10" alignment="CENTER_LEFT">
+                <Label text="Token:" prefWidth="80"/>
+                <PasswordField fx:id="frpTokenField" prefWidth="120"/>
+            </HBox>
+
+            <HBox spacing="10" alignment="CENTER_LEFT">
+                <Label text="远程端口:" prefWidth="80"/>
+                <TextField fx:id="frpRemotePortField" text="8081" prefWidth="120"/>
+            </HBox>
+
+            <HBox spacing="10" alignment="CENTER_LEFT">
+                <Label text="域名:" prefWidth="80"/>
+                <TextField fx:id="frpDomainField" prefWidth="120"/>
+            </HBox>
+
+            <Button fx:id="exportFrpBtn" text="📤 导出配置" style="-fx-background-color: #9b59b6; -fx-text-fill: white;" maxWidth="150"/>
+        </VBox>
+    </HBox>
+
+    <!-- 转码控制 -->
+    <VBox spacing="10" style="-fx-background-color: white; -fx-padding: 15; -fx-border-radius: 8; -fx-background-radius: 8; -fx-border-color: #dcdcdc;">
+        <Label text="🎬 转码控制" style="-fx-font-size: 16px; -fx-font-weight: bold; -fx-text-fill: #2c3e50;"/>
+
+        <HBox spacing="15" alignment="CENTER_LEFT">
+            <Button fx:id="startTranscodeBtn" text="▶ 启动转码" style="-fx-background-color: #2ecc71; -fx-text-fill: white;"/>
+            <Button fx:id="stopTranscodeBtn" text="⏹ 停止转码" style="-fx-background-color: #e74c3c; -fx-text-fill: white;" disable="true"/>
+            <Label text="HLV地址:" style="-fx-font-weight: bold;"/>
+            <Label fx:id="hlsUrlLabel" text="http://127.0.0.1:8080/hls/stream.m3u8" style="-fx-background-color: #ecf0f1; -fx-padding: 5; -fx-font-family: monospace;"/>
+        </HBox>
+    </VBox>
+
+    <!-- 日志面板 -->
+    <VBox spacing="5" VBox.vgrow="ALWAYS">
+        <Label text="📋 日志面板" style="-fx-font-size: 14px; -fx-font-weight: bold; -fx-text-fill: #2c3e50;"/>
+        <TextArea fx:id="logArea" editable="false" prefHeight="200"
+                  style="-fx-font-family: monospace; -fx-font-size: 12px; -fx-background-color: #1e1e1e; -fx-text-fill: #00ff00;"
+                  VBox.vgrow="ALWAYS"/>
+    </VBox>
+</VBox>
