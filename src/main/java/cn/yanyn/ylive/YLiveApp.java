@@ -170,7 +170,7 @@ public class YLiveApp extends Application {
         BorderPane root = new BorderPane();
         root.setStyle("-fx-background-color: #f0f2f5; -fx-padding: 15;");
 
-        Label title = new Label("🎬 Y Live - RTMP→HLV 穿透工具 v1.0");
+        Label title = new Label("Y Live v1.0.1");
         title.setStyle("-fx-font-size: 22px; -fx-font-weight: bold; -fx-text-fill: #1a237e;");
         BorderPane.setAlignment(title, Pos.CENTER);
         root.setTop(title);
@@ -467,7 +467,7 @@ public class YLiveApp extends Application {
         setupEvents();
         updateUrls();
 
-        log("🚀 Y Live v1.0 启动成功");
+        log("🚀 Y Live v1.0.1 启动成功");
         log("📡 本地IP: " + localIP);
         log("💡 使用步骤:");
         log("   1. 点击 '启动RTMP服务' 启动服务器");
@@ -1034,7 +1034,9 @@ public class YLiveApp extends Application {
     private List<String> buildFFmpegCommand() {
         List<String> cmd = new ArrayList<>();
         cmd.add(ffmpegPath);
-        // 从 HTTP-FLV 地址拉流（已验证可用）
+
+        // 用 -re 实时速度读取 FLV
+        cmd.add("-re");
         cmd.add("-i");
         cmd.add("http://127.0.0.1:7001/" + config.streamName + "/" + config.streamName + ".flv");
 
@@ -1045,16 +1047,39 @@ public class YLiveApp extends Application {
         }
         fontPath = fontPath.replace("\\", "/");
 
-        String filter = String.format(
-                "drawtext=text=\"%s\":fontfile='%s':x=10:y=H-th-30:fontcolor=%s:fontsize=%d%s",
-                config.subtitleText,
-                fontPath,
-                config.fontColor,
-                config.fontSize,
-                config.shadowEnabled ? ":shadowx=2:shadowy=2" : ""
-        );
-        cmd.add("-vf");
-        cmd.add(filter);
+        // 使用 textfile 方式加载字幕，避免特殊字符问题
+        try {
+            Path subtitleFile = Paths.get("./subtitle.txt");
+            Files.writeString(subtitleFile, config.subtitleText, StandardCharsets.UTF_8);
+
+            String filter = String.format(
+                    "drawtext=textfile='%s':fontfile='%s':x=10:y=H-th-30:fontcolor=%s:fontsize=%d%s",
+                    subtitleFile.toAbsolutePath().toString().replace("\\", "/"),
+                    fontPath,
+                    config.fontColor,
+                    config.fontSize,
+                    config.shadowEnabled ? ":shadowx=2:shadowy=2" : ""
+            );
+            cmd.add("-vf");
+            cmd.add(filter);
+        } catch (IOException e) {
+            // 降级方案：直接使用文本，替换特殊字符
+            String cleanText = config.subtitleText
+                    .replace("©", "(c)")
+                    .replace("\"", "\\\"")
+                    .replace(":", "\\:");
+            String filter = String.format(
+                    "drawtext=text='%s':fontfile='%s':x=10:y=H-th-30:fontcolor=%s:fontsize=%d%s",
+                    cleanText,
+                    fontPath,
+                    config.fontColor,
+                    config.fontSize,
+                    config.shadowEnabled ? ":shadowx=2:shadowy=2" : ""
+            );
+            cmd.add("-vf");
+            cmd.add(filter);
+            log("⚠️ 使用降级字幕方案: " + cleanText);
+        }
 
         cmd.add("-c:v");
         cmd.add("libx264");
