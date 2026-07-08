@@ -19,8 +19,8 @@ import org.eclipse.jetty.servlet.ServletHolder;
 
 import java.io.*;
 import java.net.*;
-import java.nio.file.*;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.*;
 import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.concurrent.*;
@@ -50,6 +50,12 @@ public class YLiveApp extends Application {
     private CheckBox shadowCheckBox;
     private TextArea logArea;
     private ProgressIndicator rtmpProgress;
+
+    // ==================== 平台检测 ====================
+    private String osName = System.getProperty("os.name").toLowerCase();
+    private boolean isWindows = osName.contains("win");
+    private boolean isLinux = osName.contains("nux") || osName.contains("nix");
+    private boolean isMac = osName.contains("mac");
 
     // ==================== 业务组件 ====================
     private Process livegoProcess;
@@ -83,14 +89,32 @@ public class YLiveApp extends Application {
         int httpPort = 8080;
         String hlsDir = "./hls";
         String livegoDir = "./libs/livego";
+        String ffmpegDir = "./libs/FFmpeg/bin";
+        String fontsDir = "./fonts";
     }
     private Config config = new Config();
+
+    private String getExeSuffix() {
+        return isWindows ? ".exe" : "";
+    }
+
+    private String getFfmpegName() {
+        return isWindows ? "ffmpeg.exe" : "ffmpeg";
+    }
+
+    private String getLivegoName() {
+        if (isWindows) return "livego_windows_amd64.exe";
+        if (isLinux) return "livego";
+        if (isMac) return "livego_macos";
+        return "livego";
+    }
 
     @Override
     public void start(Stage primaryStage) {
         initLogFile();
         getLocalIP();
         checkLivego();
+        checkFFmpeg();
         createUI(primaryStage);
         initializeApp();
         primaryStage.setTitle("Y Live");
@@ -110,6 +134,7 @@ public class YLiveApp extends Application {
             logToFile("========================================");
             logToFile("  Y Live v1.0 启动");
             logToFile("  时间: " + new Date());
+            logToFile("  平台: " + osName);
             logToFile("  ©2026 晏阳技术组 GPLv3");
             logToFile("========================================");
         } catch (IOException e) {
@@ -142,12 +167,20 @@ public class YLiveApp extends Application {
 
     // ==================== 检查livego ====================
     private void checkLivego() {
-        String livegoExe = config.livegoDir + "/livego_windows_amd64.exe";
+        String livegoName = getLivegoName();
+        String livegoExe = config.livegoDir + "/" + livegoName;
+
         if (Files.exists(Paths.get(livegoExe))) {
-            log("✅ livego已就绪");
+            log("✅ livego已就绪: " + livegoExe);
+            if (!isWindows) {
+                new File(livegoExe).setExecutable(true);
+            }
         } else {
             log("⚠ livego未找到，请下载到: " + config.livegoDir);
             log("💡 下载地址: https://github.com/gwuhaolin/livego/releases");
+            log("💡 Windows: livego_windows_amd64.exe");
+            log("💡 Linux: livego");
+            log("💡 macOS: livego_macos");
             Platform.runLater(() -> {
                 Alert alert = new Alert(Alert.AlertType.WARNING);
                 alert.setTitle("livego未找到");
@@ -155,14 +188,61 @@ public class YLiveApp extends Application {
                 alert.setContentText("""
                     livego是RTMP服务器组件。
 
-                    请从以下地址下载：
+                    请从以下地址下载对应平台版本：
                     https://github.com/gwuhaolin/livego/releases
 
-                    下载 livego_windows_amd64.exe 放到:
-                    """ + config.livegoDir);
+                    Windows: livego_windows_amd64.exe
+                    Linux: livego
+                    macOS: livego_macos
+
+                    放到: """ + config.livegoDir);
                 alert.showAndWait();
             });
         }
+    }
+
+    // ==================== 检查FFmpeg ====================
+    private void checkFFmpeg() {
+        String ffmpegExe = getFfmpegName();
+        String builtinFfmpeg = config.ffmpegDir + "/" + ffmpegExe;
+
+        // 先检查内置 FFmpeg
+        if (Files.exists(Paths.get(builtinFfmpeg))) {
+            ffmpegPath = builtinFfmpeg;
+            log("✅ 找到内置FFmpeg: " + builtinFfmpeg);
+            if (!isWindows) {
+                new File(builtinFfmpeg).setExecutable(true);
+            }
+            return;
+        }
+
+        // 再检查系统 PATH
+        try {
+            Process p = new ProcessBuilder("ffmpeg", "-version").start();
+            if (p.waitFor(3, TimeUnit.SECONDS) && p.exitValue() == 0) {
+                ffmpegPath = "ffmpeg";
+                log("✅ 系统FFmpeg已安装");
+                return;
+            }
+        } catch (Exception e) {}
+
+        log("⚠ FFmpeg未找到，请安装FFmpeg");
+        Platform.runLater(() -> {
+            Alert alert = new Alert(Alert.AlertType.WARNING);
+            alert.setTitle("FFmpeg未找到");
+            alert.setHeaderText("请安装FFmpeg");
+            alert.setContentText("""
+                字幕烧录和转码需要FFmpeg。
+
+                Windows: 下载 ffmpeg.exe 放到 libs/FFmpeg/bin/
+                Linux: sudo apt install ffmpeg
+                macOS: brew install ffmpeg
+
+                或从以下地址下载：
+                https://ffmpeg.org/download.html
+                """);
+            alert.showAndWait();
+        });
     }
 
     // ==================== UI创建 ====================
@@ -170,7 +250,7 @@ public class YLiveApp extends Application {
         BorderPane root = new BorderPane();
         root.setStyle("-fx-background-color: #f0f2f5; -fx-padding: 15;");
 
-        Label title = new Label("Y Live v1.0.1");
+        Label title = new Label("🎬 Y Live - RTMP→HLV 穿透工具 v1.0");
         title.setStyle("-fx-font-size: 22px; -fx-font-weight: bold; -fx-text-fill: #1a237e;");
         BorderPane.setAlignment(title, Pos.CENTER);
         root.setTop(title);
@@ -208,7 +288,6 @@ public class YLiveApp extends Application {
     private VBox createRtmpPanel() {
         VBox panel = createPanel("📡 RTMP服务");
 
-        // 端口和流名
         HBox portBox = new HBox(10);
         portBox.setAlignment(Pos.CENTER_LEFT);
         rtmpPortField = new TextField("1935");
@@ -220,7 +299,6 @@ public class YLiveApp extends Application {
                 new Label("流名:"), streamNameField
         );
 
-        // HLS端口和HTTP-FLV端口
         HBox hlsPortBox = new HBox(10);
         hlsPortBox.setAlignment(Pos.CENTER_LEFT);
         hlsPortField = new TextField("7002");
@@ -235,7 +313,6 @@ public class YLiveApp extends Application {
                 new Label("API端口:"), apiPortField
         );
 
-        // 状态
         HBox statusBox = new HBox(10);
         statusBox.setAlignment(Pos.CENTER_LEFT);
         rtmpProgress = new ProgressIndicator();
@@ -247,27 +324,23 @@ public class YLiveApp extends Application {
         connectionStatusLabel.setStyle("-fx-text-fill: #888;");
         statusBox.getChildren().addAll(rtmpProgress, rtmpStatusLabel, connectionStatusLabel);
 
-        // 按钮
         HBox btnBox = new HBox(10);
         startRtmpBtn = createButton("▶ 启动RTMP服务", "#27ae60");
         stopRtmpBtn = createButton("⏹ 停止", "#e74c3c");
         stopRtmpBtn.setDisable(true);
         btnBox.getChildren().addAll(startRtmpBtn, stopRtmpBtn);
 
-        // 获取推流码按钮
         HBox getKeyBox = new HBox(10);
         getKeyBox.setAlignment(Pos.CENTER_LEFT);
         getStreamKeyBtn = createButton("🔑 获取推流码", "#9b59b6");
         getStreamKeyBtn.setOnAction(e -> getStreamKey());
-        getStreamKeyBtn.setDisable(true);  // 默认禁用
+        getStreamKeyBtn.setDisable(true);
         getKeyBox.getChildren().addAll(getStreamKeyBtn, new Label("请先启动RTMP服务"));
         getKeyBox.setPadding(new Insets(5, 0, 5, 0));
 
-        // ========== 推流信息显示区域 ==========
         Label infoTitle = new Label("📋 推流信息");
         infoTitle.setStyle("-fx-font-weight: bold; -fx-text-fill: #2c3e50; -fx-font-size: 14px;");
 
-        // 推流码
         HBox keyBox = new HBox(5);
         keyBox.setAlignment(Pos.CENTER_LEFT);
         keyBox.getChildren().addAll(new Label("推流码:"));
@@ -283,7 +356,6 @@ public class YLiveApp extends Application {
             }
         });
 
-        // 推流地址
         HBox pushBox = new HBox(5);
         pushBox.setAlignment(Pos.CENTER_LEFT);
         pushBox.getChildren().addAll(new Label("推流地址:"));
@@ -293,7 +365,6 @@ public class YLiveApp extends Application {
         pushBox.getChildren().addAll(pushUrlLabel, copyPushUrlBtn);
         copyPushUrlBtn.setOnAction(e -> copyToClipboard(pushUrlLabel.getText(), "推流地址"));
 
-        // HLS地址
         HBox hlsBox = new HBox(5);
         hlsBox.setAlignment(Pos.CENTER_LEFT);
         hlsBox.getChildren().addAll(new Label("HLS地址:"));
@@ -303,7 +374,6 @@ public class YLiveApp extends Application {
         hlsBox.getChildren().addAll(hlsUrlLabel, copyHlsUrlBtn);
         copyHlsUrlBtn.setOnAction(e -> copyToClipboard(hlsUrlLabel.getText(), "HLS地址"));
 
-        // FLV地址
         HBox flvBox = new HBox(5);
         flvBox.setAlignment(Pos.CENTER_LEFT);
         flvBox.getChildren().addAll(new Label("FLV地址:"));
@@ -335,7 +405,7 @@ public class YLiveApp extends Application {
 
         HBox contentBox = new HBox(10);
         contentBox.setAlignment(Pos.CENTER_LEFT);
-        subtitleTextField = new TextField("玩家ID");
+        subtitleTextField = new TextField("© 2026 直播");
         subtitleTextField.setPrefWidth(200);
         contentBox.getChildren().addAll(new Label("内容:"), subtitleTextField);
 
@@ -456,19 +526,19 @@ public class YLiveApp extends Application {
     private void initializeApp() {
         try {
             Files.createDirectories(Paths.get(config.hlsDir));
+            Files.createDirectories(Paths.get(config.fontsDir));
             log("📁 创建目录: " + config.hlsDir);
         } catch (IOException e) {
             log("❌ 创建目录失败: " + e.getMessage());
         }
 
-        checkFFmpeg();
-        checkLivego();
         checkSystemFonts();
         setupEvents();
         updateUrls();
 
-        log("🚀 Y Live v1.0.1 启动成功");
+        log("🚀 Y Live v1.0 启动成功");
         log("📡 本地IP: " + localIP);
+        log("💻 平台: " + osName);
         log("💡 使用步骤:");
         log("   1. 点击 '启动RTMP服务' 启动服务器");
         log("   2. 点击 '获取推流码' 获取推流码");
@@ -501,47 +571,29 @@ public class YLiveApp extends Application {
         }
     }
 
-    private void checkFFmpeg() {
-        String builtinFfmpeg = "./libs/FFmpeg/bin/ffmpeg.exe";
-        if (Files.exists(Paths.get(builtinFfmpeg))) {
-            ffmpegPath = builtinFfmpeg;
-            log("✅ 找到内置FFmpeg: " + builtinFfmpeg);
-            return;
+    // ==================== 检查系统字体 ====================
+    private void checkSystemFonts() {
+        String[] paths;
+
+        if (isWindows) {
+            paths = new String[]{
+                    "C:/Windows/Fonts/msyh.ttf",
+                    "C:/Windows/Fonts/SimHei.ttf",
+                    "C:/Windows/Fonts/SourceHanSansSC-Regular.otf"
+            };
+        } else if (isMac) {
+            paths = new String[]{
+                    "/System/Library/Fonts/PingFang.ttc",
+                    "/System/Library/Fonts/STHeiti Light.ttc"
+            };
+        } else {
+            paths = new String[]{
+                    config.fontsDir + "/SourceHanSansCN-Bold.otf",
+                    "/usr/share/fonts/truetype/wqy/wqy-microhei.ttc",
+                    "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"
+            };
         }
 
-        try {
-            Process p = new ProcessBuilder("ffmpeg", "-version").start();
-            if (p.waitFor(3, TimeUnit.SECONDS) && p.exitValue() == 0) {
-                log("✅ FFmpeg已安装");
-                return;
-            }
-        } catch (Exception e) {}
-
-        log("⚠ FFmpeg未找到，请安装FFmpeg");
-        Platform.runLater(() -> {
-            Alert alert = new Alert(Alert.AlertType.WARNING);
-            alert.setTitle("FFmpeg未找到");
-            alert.setHeaderText("请安装FFmpeg");
-            alert.setContentText("""
-                字幕烧录和转码需要FFmpeg。
-
-                请从以下地址下载安装：
-                https://ffmpeg.org/download.html
-
-                安装后将ffmpeg添加到系统PATH中。
-                """);
-            alert.showAndWait();
-        });
-    }
-
-    private void checkSystemFonts() {
-        String[] paths = {
-                "C:/Windows/Fonts/msyh.ttf",
-                "C:/Windows/Fonts/SimHei.ttf",
-                "C:/Windows/Fonts/SourceHanSansSC-Regular.otf",
-                "/System/Library/Fonts/PingFang.ttc",
-                "/usr/share/fonts/truetype/wqy/wqy-microhei.ttc"
-        };
         for (String path : paths) {
             if (Files.exists(Paths.get(path))) {
                 config.fontPath = path;
@@ -550,7 +602,13 @@ public class YLiveApp extends Application {
                 return;
             }
         }
-        log("ℹ️ 未找到中文字体，将使用系统默认字体");
+
+        // 如果思源黑体没找到，提示下载
+        if (!isWindows && !isMac) {
+            log("ℹ️ 未找到思源黑体，请下载放到: " + config.fontsDir);
+            log("💡 下载地址: https://github.com/adobe-fonts/source-han-sans/releases");
+        }
+        log("ℹ️ 将使用系统默认字体");
     }
 
     private void setupEvents() {
@@ -576,7 +634,7 @@ public class YLiveApp extends Application {
     private void browseFont() {
         FileChooser fc = new FileChooser();
         fc.setTitle("选择字体文件");
-        fc.getExtensionFilters().add(new FileChooser.ExtensionFilter("字体", "*.ttf", "*.otf"));
+        fc.getExtensionFilters().add(new FileChooser.ExtensionFilter("字体", "*.ttf", "*.otf", "*.ttc"));
         File file = fc.showOpenDialog(null);
         if (file != null) {
             fontPathField.setText(file.getAbsolutePath());
@@ -685,7 +743,6 @@ public class YLiveApp extends Application {
             return;
         }
 
-        // 防止重复点击
         if (getStreamKeyBtn.getText().contains("获取中")) {
             return;
         }
@@ -733,7 +790,6 @@ public class YLiveApp extends Application {
 
                 currentStreamKey = realKey;
 
-                // 3. 显示推流码
                 final String finalKey = realKey;
                 final String rtmpUrl = "rtmp://" + localIP + ":" + rtmpPort + "/" + stream;
                 Platform.runLater(() -> {
@@ -747,7 +803,6 @@ public class YLiveApp extends Application {
                     getStreamKeyBtn.setDisable(false);
                 });
 
-                // 弹窗显示
                 Platform.runLater(() -> {
                     Alert alert = new Alert(Alert.AlertType.INFORMATION);
                     alert.setTitle("推流码获取成功");
@@ -789,7 +844,6 @@ public class YLiveApp extends Application {
 
                 log("📡 API响应: " + response);
 
-                // 直接提取 data 后面的字符串
                 if (response != null && response.contains("\"data\"")) {
                     String search = "\"data\"";
                     int dataIndex = response.indexOf(search);
@@ -826,7 +880,9 @@ public class YLiveApp extends Application {
 
         // 清理残留进程
         try {
-            Process p = Runtime.getRuntime().exec("taskkill /F /IM livego_windows_amd64.exe");
+            String livegoName = getLivegoName();
+            String killCmd = isWindows ? "taskkill /F /IM " + livegoName : "pkill -f " + livegoName;
+            Process p = Runtime.getRuntime().exec(killCmd);
             p.waitFor(2, TimeUnit.SECONDS);
             log("🧹 已清理残留的livego进程");
         } catch (Exception e) {}
@@ -851,11 +907,16 @@ public class YLiveApp extends Application {
                 return;
             }
 
-            String livegoExe = config.livegoDir + "/livego_windows_amd64.exe";
+            String livegoName = getLivegoName();
+            String livegoExe = config.livegoDir + "/" + livegoName;
             if (!Files.exists(Paths.get(livegoExe))) {
                 log("❌ livego未找到");
                 showAlert("livego未找到", "请下载livego到: " + config.livegoDir);
                 return;
+            }
+
+            if (!isWindows) {
+                new File(livegoExe).setExecutable(true);
             }
 
             log("🎬 启动RTMP服务器 (livego)");
@@ -863,7 +924,6 @@ public class YLiveApp extends Application {
             log("📺 HLS端口: " + hlsPort);
             log("📺 HTTP-FLV端口: " + flvPort);
 
-            // 用命令行启动 livego
             ProcessBuilder pb = new ProcessBuilder(
                     livegoExe,
                     "--rtmp_addr", ":" + rtmpPort,
@@ -876,8 +936,6 @@ public class YLiveApp extends Application {
             pb.redirectErrorStream(true);
 
             livegoProcess = pb.start();
-
-            // 等待 livego 启动
             Thread.sleep(3000);
 
             isRtmpRunning = true;
@@ -888,9 +946,8 @@ public class YLiveApp extends Application {
             rtmpProgress.setVisible(true);
             startRtmpBtn.setDisable(true);
             stopRtmpBtn.setDisable(false);
-            getStreamKeyBtn.setDisable(false);  // 启用获取推流码按钮
+            getStreamKeyBtn.setDisable(false);
 
-            // 如果有推流码则显示
             final String fixedKey = currentStreamKey.isEmpty() ? "请点击获取推流码" : currentStreamKey;
             Platform.runLater(() -> {
                 if (!currentStreamKey.isEmpty()) {
@@ -961,7 +1018,9 @@ public class YLiveApp extends Application {
 
         // 强制杀死残留进程
         try {
-            Process p = Runtime.getRuntime().exec("taskkill /F /IM livego_windows_amd64.exe");
+            String livegoName = getLivegoName();
+            String killCmd = isWindows ? "taskkill /F /IM " + livegoName : "pkill -f " + livegoName;
+            Process p = Runtime.getRuntime().exec(killCmd);
             p.waitFor(2, TimeUnit.SECONDS);
         } catch (Exception e) {}
 
@@ -969,7 +1028,7 @@ public class YLiveApp extends Application {
 
         isRtmpRunning = false;
         hasOBSConnection = false;
-        getStreamKeyBtn.setDisable(true);  // 禁用获取推流码按钮
+        getStreamKeyBtn.setDisable(true);
         Platform.runLater(() -> {
             streamKeyDisplayField.setText(currentStreamKey);
         });
@@ -1031,49 +1090,49 @@ public class YLiveApp extends Application {
         }
     }
 
+    // ==================== 构建 FFmpeg 命令 ====================
     private List<String> buildFFmpegCommand() {
         List<String> cmd = new ArrayList<>();
         cmd.add(ffmpegPath);
-
-        // 用 -re 实时速度读取 FLV
         cmd.add("-re");
         cmd.add("-i");
         cmd.add("http://127.0.0.1:7001/" + config.streamName + "/" + config.streamName + ".flv");
 
-        // 字幕滤镜
-        String fontPath = "./fonts/SourceHanSansCN-Bold.otf";
-        if (!Files.exists(Paths.get(fontPath))) {
-            fontPath = "C:/Windows/Fonts/SimHei.ttf";
+        // 字体路径 - 跨平台
+        String fontPath = config.fontPath;
+        if (fontPath.isEmpty()) {
+            if (isWindows) {
+                fontPath = "C:/Windows/Fonts/SimHei.ttf";
+            } else if (isMac) {
+                fontPath = "/System/Library/Fonts/PingFang.ttc";
+            } else {
+                fontPath = config.fontsDir + "/SourceHanSansCN-Bold.otf";
+            }
         }
         fontPath = fontPath.replace("\\", "/");
 
-        // 使用 textfile 方式加载字幕，避免特殊字符问题
+        // 使用 textfile 方式
         try {
             Path subtitleFile = Paths.get("./subtitle.txt");
             Files.writeString(subtitleFile, config.subtitleText, StandardCharsets.UTF_8);
+            String absPath = subtitleFile.toAbsolutePath().toString().replace("\\", "/");
 
             String filter = String.format(
                     "drawtext=textfile='%s':fontfile='%s':x=10:y=H-th-30:fontcolor=%s:fontsize=%d%s",
-                    subtitleFile.toAbsolutePath().toString().replace("\\", "/"),
-                    fontPath,
-                    config.fontColor,
-                    config.fontSize,
+                    absPath, fontPath, config.fontColor, config.fontSize,
                     config.shadowEnabled ? ":shadowx=2:shadowy=2" : ""
             );
             cmd.add("-vf");
             cmd.add(filter);
         } catch (IOException e) {
-            // 降级方案：直接使用文本，替换特殊字符
+            // 降级方案：替换特殊字符
             String cleanText = config.subtitleText
                     .replace("©", "(c)")
                     .replace("\"", "\\\"")
                     .replace(":", "\\:");
             String filter = String.format(
                     "drawtext=text='%s':fontfile='%s':x=10:y=H-th-30:fontcolor=%s:fontsize=%d%s",
-                    cleanText,
-                    fontPath,
-                    config.fontColor,
-                    config.fontSize,
+                    cleanText, fontPath, config.fontColor, config.fontSize,
                     config.shadowEnabled ? ":shadowx=2:shadowy=2" : ""
             );
             cmd.add("-vf");
@@ -1103,6 +1162,7 @@ public class YLiveApp extends Application {
 
         return cmd;
     }
+
     private void stopTranscoding() {
         if (!isTranscoding) return;
 
@@ -1215,11 +1275,29 @@ public class YLiveApp extends Application {
             log("🔗 启动FRP穿透...");
             log("📄 配置文件: " + frpConfigPath);
 
-            String frpcPath = findFrpc();
+            String frpcExe = isWindows ? "frpc.exe" : "frpc";
+            String[] possiblePaths = {
+                    "./libs/frpc/" + frpcExe,
+                    "./" + frpcExe,
+                    frpcExe
+            };
+
+            String frpcPath = null;
+            for (String path : possiblePaths) {
+                if (Files.exists(Paths.get(path))) {
+                    frpcPath = path;
+                    break;
+                }
+            }
+
             if (frpcPath == null) {
                 log("❌ 未找到frpc，请下载FRP客户端");
                 showAlert("FRP未找到", "请下载frpc并放到libs目录或添加到PATH");
                 return;
+            }
+
+            if (!isWindows) {
+                new File(frpcPath).setExecutable(true);
             }
 
             ProcessBuilder pb = new ProcessBuilder(frpcPath, "-c", frpConfigPath);
@@ -1240,24 +1318,6 @@ public class YLiveApp extends Application {
             log("❌ 启动FRP失败: " + e.getMessage());
             e.printStackTrace();
         }
-    }
-
-    private String findFrpc() {
-        String[] possiblePaths = {
-                "./libs/frpc/frpc.exe",
-                "./libs/frpc/frpc",
-                "./frpc.exe",
-                "./frpc",
-                "frpc.exe",
-                "frpc"
-        };
-
-        for (String path : possiblePaths) {
-            if (Files.exists(Paths.get(path))) {
-                return path;
-            }
-        }
-        return null;
     }
 
     private void monitorFrpProcess(Process process) {
