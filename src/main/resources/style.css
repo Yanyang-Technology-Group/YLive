@@ -1,46 +1,216 @@
+/* ==================== 根样式 ==================== */
 .root {
-    -fx-font-family: "Microsoft YaHei", "SimHei", Arial, sans-serif;
+    -fx-font-family: "Source Han Sans CN Bold", "Microsoft YaHei", "PingFang SC", "WenQuanYi Micro Hei", sans-serif;
+    -fx-background-color: transparent;
 }
 
+/* ==================== 按钮美化 ==================== */
 .button {
     -fx-cursor: hand;
     -fx-font-weight: bold;
+    -fx-padding: 8 18;
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.1), 4, 0, 0, 2);
+    -fx-transition: all 0.2s ease;
 }
 
 .button:hover {
-    -fx-opacity: 0.8;
+    -fx-opacity: 0.85;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.2), 8, 0, 0, 4);
 }
 
+.button:pressed {
+    -fx-opacity: 0.7;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.05), 2, 0, 0, 1);
+}
+
+.button:disabled {
+    -fx-opacity: 0.5;
+    -fx-cursor: default;
+    -fx-effect: none;
+}
+
+/* ==================== 输入框美化 ==================== */
 .text-field, .password-field {
-    -fx-background-radius: 4;
-    -fx-border-radius: 4;
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
+    -fx-border-color: #dce1e8;
+    -fx-border-width: 1.5;
+    -fx-padding: 6 12;
+    -fx-background-color: #fafbfc;
+    -fx-transition: all 0.2s ease;
 }
 
-.text-area {
-    -fx-background-radius: 4;
-    -fx-border-radius: 4;
+.text-field:focused, .password-field:focused {
+    -fx-border-color: #6c5ce7;
+    -fx-background-color: white;
+    -fx-effect: dropshadow(gaussian, rgba(108, 92, 231, 0.2), 8, 0, 0, 0);
 }
 
-.text-area .content {
-    -fx-background-color: #1e1e1e;
+.text-field:disabled {
+    -fx-opacity: 0.6;
 }
 
-.text-area .scroll-bar {
-    -fx-background-color: #2d2d2d;
+/* ==================== 地址框 ==================== */
+.address-field {
+    -fx-background-color: #f0f2f5;
+    -fx-font-family: "Consolas", monospace;
+    -fx-background-radius: 6;
+    -fx-border-radius: 6;
+    -fx-border-color: #e0e4ea;
+    -fx-border-width: 1;
+    -fx-padding: 4 10;
 }
 
-.text-area .scroll-bar .thumb {
-    -fx-background-color: #555555;
+/* ==================== 日志面板 ==================== */
+.log-text-area {
+    -fx-font-family: "Consolas", monospace;
+    -fx-font-size: 12px;
+    -fx-text-fill: #a8ff78;
+    -fx-background-color: #1a1a2e;
+    -fx-control-inner-background: #1a1a2e;
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
 }
 
+.log-text-area .content {
+    -fx-background-color: #1a1a2e;
+}
+
+/* ==================== 标签 ==================== */
+.label-info {
+    -fx-text-fill: #7f8c8d;
+    -fx-font-size: 12px;
+}
+
+.label-success {
+    -fx-text-fill: #00b894;
+}
+
+.label-danger {
+    -fx-text-fill: #ff6b6b;
+}
+
+.label-warning {
+    -fx-text-fill: #fdcb6e;
+}
+
+/* ==================== 滑块 ==================== */
 .slider .thumb {
-    -fx-background-color: #3498db;
+    -fx-background-color: #6c5ce7;
+    -fx-background-radius: 50%;
+    -fx-effect: dropshadow(gaussian, rgba(108, 92, 231, 0.3), 6, 0, 0, 2);
 }
 
 .slider .track {
-    -fx-background-color: #bdc3c7;
+    -fx-background-color: #dfe6e9;
+    -fx-background-radius: 4;
 }
 
 .slider .track:filled {
-    -fx-background-color: #3498db;
+    -fx-background-color: #6c5ce7;
+    -fx-background-radius: 4;
+}
+
+/* ==================== 复选框 ==================== */
+.check-box .box {
+    -fx-background-radius: 4;
+    -fx-border-radius: 4;
+    -fx-border-color: #bdc3c7;
+    -fx-border-width: 2;
+}
+
+.check-box:selected .box {
+    -fx-background-color: #6c5ce7;
+    -fx-border-color: #6c5ce7;
+}
+
+.check-box:selected .mark {
+    -fx-background-color: white;
+}
+
+/* ==================== 进度指示器 ==================== */
+.progress-indicator {
+    -fx-progress-color: #6c5ce7;
+}
+
+.progress-indicator .spinner {
+    -fx-background-color: transparent;
+}
+
+/* ==================== 滚动条 ==================== */
+.scroll-bar {
+    -fx-background-color: transparent;
+}
+
+.scroll-bar .thumb {
+    -fx-background-color: #636e72;
+    -fx-background-radius: 4;
+}
+
+.scroll-bar .thumb:hover {
+    -fx-background-color: #b2bec3;
+}
+
+.scroll-bar .track {
+    -fx-background-color: transparent;
+}
+
+.scroll-bar .increment-button, .scroll-bar .decrement-button {
+    -fx-background-color: transparent;
+}
+
+/* ==================== 颜色选择器 ==================== */
+.color-picker {
+    -fx-background-radius: 6;
+    -fx-border-radius: 6;
+}
+
+/* ==================== 工具提示 ==================== */
+.tooltip {
+    -fx-font-size: 12px;
+    -fx-background-color: #2d3436;
+    -fx-text-fill: white;
+    -fx-background-radius: 6;
+    -fx-padding: 6 12;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.2), 8, 0, 0, 4);
+}
+
+/* ==================== 标题栏按钮 ==================== */
+.title-btn {
+    -fx-background-color: transparent;
+    -fx-text-fill: #2c3e50;
+    -fx-font-size: 14px;
+    -fx-min-width: 30px;
+    -fx-min-height: 30px;
+    -fx-max-width: 30px;
+    -fx-max-height: 30px;
+    -fx-border-radius: 4;
+    -fx-background-radius: 4;
+    -fx-cursor: hand;
+    -fx-padding: 0;
+}
+
+.title-btn:hover {
+    -fx-background-color: #dfe4ea;
+}
+
+.title-btn-close {
+    -fx-background-color: transparent;
+    -fx-text-fill: #2c3e50;
+    -fx-font-size: 14px;
+    -fx-min-width: 30px;
+    -fx-min-height: 30px;
+    -fx-max-width: 30px;
+    -fx-max-height: 30px;
+    -fx-border-radius: 4;
+    -fx-background-radius: 4;
+    -fx-cursor: hand;
+    -fx-padding: 0;
+}
+
+.title-btn-close:hover {
+    -fx-background-color: #ff4757;
+    -fx-text-fill: white;
 }

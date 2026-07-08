@@ -7,7 +7,7 @@
 
     <groupId>cn.yanyn.ylive</groupId>
     <artifactId>ylive</artifactId>
-    <version>1.0.2</version>
+    <version>1.0.3</version>
     <packaging>jar</packaging>
 
     <name>Y Live</name>

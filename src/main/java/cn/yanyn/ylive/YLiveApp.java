@@ -10,8 +10,10 @@ import javafx.scene.input.Clipboard;
 import javafx.scene.input.ClipboardContent;
 import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
+import javafx.scene.text.Font;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
+import javafx.stage.StageStyle;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.servlet.DefaultServlet;
 import org.eclipse.jetty.servlet.ServletContextHandler;
@@ -50,6 +52,9 @@ public class YLiveApp extends Application {
     private CheckBox shadowCheckBox;
     private TextArea logArea;
     private ProgressIndicator rtmpProgress;
+    private Stage primaryStage;
+    private double xOffset = 0;
+    private double yOffset = 0;
 
     // ==================== 平台检测 ====================
     private String osName = System.getProperty("os.name").toLowerCase();
@@ -81,8 +86,8 @@ public class YLiveApp extends Application {
         int flvPort = 7001;
         int apiPort = 8090;
         String streamName = "live";
-        String subtitleText = "玩家ID";
-        String fontPath = "";
+        String subtitleText = "深水6";
+        String fontPath = "./fonts/SourceHanSansCN-Bold.otf";
         int fontSize = 24;
         String fontColor = "#FFFFFF";
         boolean shadowEnabled = true;
@@ -110,18 +115,23 @@ public class YLiveApp extends Application {
     }
 
     @Override
-    public void start(Stage primaryStage) {
+    public void start(Stage stage) {
+        this.primaryStage = stage;
+
         initLogFile();
         getLocalIP();
         checkLivego();
         checkFFmpeg();
-        createUI(primaryStage);
+
+        // 创建圆润透明窗口
+        createUI(stage);
         initializeApp();
-        primaryStage.setTitle("Y Live");
-        primaryStage.setMinWidth(1100);
-        primaryStage.setMinHeight(750);
-        primaryStage.setOnCloseRequest(e -> shutdown());
-        primaryStage.show();
+
+        stage.setTitle("Y Live");
+        stage.setMinWidth(1100);
+        stage.setMinHeight(750);
+        stage.setOnCloseRequest(e -> shutdown());
+        stage.show();
     }
 
     // ==================== 日志初始化 ====================
@@ -178,9 +188,6 @@ public class YLiveApp extends Application {
         } else {
             log("⚠ livego未找到，请下载到: " + config.livegoDir);
             log("💡 下载地址: https://github.com/gwuhaolin/livego/releases");
-            log("💡 Windows: livego_windows_amd64.exe");
-            log("💡 Linux: livego");
-            log("💡 macOS: livego_macos");
             Platform.runLater(() -> {
                 Alert alert = new Alert(Alert.AlertType.WARNING);
                 alert.setTitle("livego未找到");
@@ -206,7 +213,6 @@ public class YLiveApp extends Application {
         String ffmpegExe = getFfmpegName();
         String builtinFfmpeg = config.ffmpegDir + "/" + ffmpegExe;
 
-        // 先检查内置 FFmpeg
         if (Files.exists(Paths.get(builtinFfmpeg))) {
             ffmpegPath = builtinFfmpeg;
             log("✅ 找到内置FFmpeg: " + builtinFfmpeg);
@@ -216,7 +222,6 @@ public class YLiveApp extends Application {
             return;
         }
 
-        // 再检查系统 PATH
         try {
             Process p = new ProcessBuilder("ffmpeg", "-version").start();
             if (p.waitFor(3, TimeUnit.SECONDS) && p.exitValue() == 0) {
@@ -247,23 +252,52 @@ public class YLiveApp extends Application {
 
     // ==================== UI创建 ====================
     private void createUI(Stage stage) {
-        BorderPane root = new BorderPane();
-        root.setStyle("-fx-background-color: #f0f2f5; -fx-padding: 15;");
+        // 设置透明圆润窗口
+        stage.initStyle(StageStyle.TRANSPARENT);
 
+        BorderPane root = new BorderPane();
+        root.setStyle("-fx-background-color: transparent; -fx-padding: 0;");
+
+        // 主容器 - 圆润背景
+        VBox mainContainer = new VBox();
+        mainContainer.setStyle(
+                "-fx-background-color: #f0f2f5; " +
+                        "-fx-background-radius: 20; " +
+                        "-fx-border-radius: 20; " +
+                        "-fx-border-color: rgba(200,200,200,0.3); " +
+                        "-fx-border-width: 1; " +
+                        "-fx-effect: dropshadow(gaussian, rgba(0,0,0,0.3), 20, 0, 0, 10);"
+        );
+        mainContainer.setPadding(new Insets(5));
+
+        // ===== 自定义标题栏 =====
+        HBox titleBar = createTitleBar(stage);
+        mainContainer.getChildren().add(titleBar);
+
+        // ===== 内容区域 =====
+        VBox contentArea = new VBox();
+        contentArea.setStyle("-fx-background-color: transparent; -fx-padding: 0 10 10 10;");
+        contentArea.setSpacing(10);
+
+        // 标题
         Label title = new Label("🎬 Y Live - RTMP→HLV 穿透工具 v1.0");
         title.setStyle("-fx-font-size: 22px; -fx-font-weight: bold; -fx-text-fill: #1a237e;");
-        BorderPane.setAlignment(title, Pos.CENTER);
-        root.setTop(title);
+        title.setAlignment(Pos.CENTER);
+        title.setMaxWidth(Double.MAX_VALUE);
+        HBox titleBox = new HBox(title);
+        titleBox.setAlignment(Pos.CENTER);
+        titleBox.setPadding(new Insets(5, 0, 10, 0));
 
+        // 中间三栏
         HBox centerBox = new HBox(15);
-        centerBox.setPadding(new Insets(15, 0, 15, 0));
+        centerBox.setPadding(new Insets(5, 0, 5, 0));
         centerBox.getChildren().addAll(
                 createRtmpPanel(),
                 createSubtitlePanel(),
                 createFrpPanel()
         );
-        root.setCenter(centerBox);
 
+        // 底部
         VBox bottomBox = new VBox(10);
         bottomBox.getChildren().addAll(
                 createTranscodePanel(),
@@ -277,14 +311,104 @@ public class YLiveApp extends Application {
         footerLabel.setStyle("-fx-text-fill: #7f8c8d; -fx-font-size: 11px;");
         footerBox.getChildren().add(footerLabel);
 
-        VBox mainBottomBox = new VBox(2);
-        mainBottomBox.getChildren().addAll(bottomBox, footerBox);
-        root.setBottom(mainBottomBox);
+        contentArea.getChildren().addAll(titleBox, centerBox, bottomBox, footerBox);
+        mainContainer.getChildren().add(contentArea);
 
-        Scene scene = new Scene(root, 1200, 800);
+        root.setCenter(mainContainer);
+
+        Scene scene = new Scene(root, 1200, 800, Color.TRANSPARENT);
+        scene.getStylesheets().add(getClass().getResource("/style.css").toExternalForm());
+
+        // 窗口拖动
+        scene.setOnMousePressed(event -> {
+            xOffset = event.getSceneX();
+            yOffset = event.getSceneY();
+        });
+        scene.setOnMouseDragged(event -> {
+            stage.setX(event.getScreenX() - xOffset);
+            stage.setY(event.getScreenY() - yOffset);
+        });
+
         stage.setScene(scene);
     }
 
+    // ===== 自定义标题栏 =====
+    private HBox createTitleBar(Stage stage) {
+        HBox titleBar = new HBox();
+        titleBar.setAlignment(Pos.CENTER_LEFT);
+        titleBar.setPadding(new Insets(5, 10, 5, 10));
+        titleBar.setStyle(
+                "-fx-background-color: transparent; " +
+                        "-fx-background-radius: 15 15 0 0;"
+        );
+
+        // 标题文字
+        Label titleLabel = new Label("Y Live");
+        titleLabel.setStyle(
+                "-fx-font-size: 16px; " +
+                        "-fx-font-weight: bold; " +
+                        "-fx-text-fill: #1a237e;"
+        );
+        HBox.setHgrow(titleLabel, Priority.ALWAYS);
+
+        // 最小化按钮
+        Button minBtn = createTitleButton("─", "#f1f2f6", "#dfe4ea");
+        minBtn.setOnAction(e -> stage.setIconified(true));
+
+        // 最大化按钮
+        Button maxBtn = createTitleButton("☐", "#f1f2f6", "#dfe4ea");
+        maxBtn.setOnAction(e -> {
+            if (stage.isMaximized()) {
+                stage.setMaximized(false);
+            } else {
+                stage.setMaximized(true);
+            }
+        });
+
+        // 关闭按钮
+        Button closeBtn = createTitleButton("✕", "#ff4757", "#ff6b81");
+        closeBtn.setOnAction(e -> shutdown());
+
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+
+        titleBar.getChildren().addAll(titleLabel, spacer, minBtn, maxBtn, closeBtn);
+        return titleBar;
+    }
+
+    private Button createTitleButton(String text, String bg, String hoverBg) {
+        Button btn = new Button(text);
+        btn.setStyle(
+                "-fx-background-color: transparent; " +
+                        "-fx-text-fill: #2c3e50; " +
+                        "-fx-font-size: 14px; " +
+                        "-fx-min-width: 30px; " +
+                        "-fx-min-height: 30px; " +
+                        "-fx-max-width: 30px; " +
+                        "-fx-max-height: 30px; " +
+                        "-fx-border-radius: 4; " +
+                        "-fx-background-radius: 4; " +
+                        "-fx-cursor: hand; " +
+                        "-fx-padding: 0;"
+        );
+        btn.setOnMouseEntered(e -> {
+            if (!btn.getText().equals("✕")) {
+                btn.setStyle("-fx-background-color: " + hoverBg + "; -fx-text-fill: #2c3e50; -fx-font-size: 14px; -fx-min-width: 30px; -fx-min-height: 30px; -fx-max-width: 30px; -fx-max-height: 30px; -fx-border-radius: 4; -fx-background-radius: 4; -fx-cursor: hand; -fx-padding: 0;");
+            } else {
+                btn.setStyle("-fx-background-color: " + bg + "; -fx-text-fill: white; -fx-font-size: 14px; -fx-min-width: 30px; -fx-min-height: 30px; -fx-max-width: 30px; -fx-max-height: 30px; -fx-border-radius: 4; -fx-background-radius: 4; -fx-cursor: hand; -fx-padding: 0;");
+            }
+        });
+        btn.setOnMouseExited(e -> {
+            if (!btn.getText().equals("✕")) {
+                btn.setStyle("-fx-background-color: transparent; -fx-text-fill: #2c3e50; -fx-font-size: 14px; -fx-min-width: 30px; -fx-min-height: 30px; -fx-max-width: 30px; -fx-max-height: 30px; -fx-border-radius: 4; -fx-background-radius: 4; -fx-cursor: hand; -fx-padding: 0;");
+            } else {
+                btn.setStyle("-fx-background-color: transparent; -fx-text-fill: #2c3e50; -fx-font-size: 14px; -fx-min-width: 30px; -fx-min-height: 30px; -fx-max-width: 30px; -fx-max-height: 30px; -fx-border-radius: 4; -fx-background-radius: 4; -fx-cursor: hand; -fx-padding: 0;");
+            }
+        });
+        return btn;
+    }
+
+    // ==================== 面板创建方法 ====================
     private VBox createRtmpPanel() {
         VBox panel = createPanel("📡 RTMP服务");
 
@@ -396,7 +520,7 @@ public class YLiveApp extends Application {
 
     private Button createSmallButton(String text) {
         Button btn = new Button(text);
-        btn.setStyle("-fx-font-size: 11px; -fx-padding: 2 8; -fx-cursor: hand;");
+        btn.setStyle("-fx-font-size: 11px; -fx-padding: 2 8; -fx-cursor: hand; -fx-background-radius: 4;");
         return btn;
     }
 
@@ -405,7 +529,7 @@ public class YLiveApp extends Application {
 
         HBox contentBox = new HBox(10);
         contentBox.setAlignment(Pos.CENTER_LEFT);
-        subtitleTextField = new TextField("© 2026 直播");
+        subtitleTextField = new TextField("深水6");
         subtitleTextField.setPrefWidth(200);
         contentBox.getChildren().addAll(new Label("内容:"), subtitleTextField);
 
@@ -414,6 +538,8 @@ public class YLiveApp extends Application {
         fontPathField = new TextField();
         fontPathField.setEditable(false);
         fontPathField.setPrefWidth(150);
+        fontPathField.setText("./fonts/SourceHanSansCN-Bold.otf");
+        config.fontPath = "./fonts/SourceHanSansCN-Bold.otf";
         browseFontBtn = createButton("浏览...", "#3498db");
         fontBox.getChildren().addAll(new Label("字体:"), fontPathField, browseFontBtn);
 
@@ -491,7 +617,7 @@ public class YLiveApp extends Application {
         Label logLabel = new Label("📋 日志面板");
         logLabel.setStyle("-fx-text-fill: #a0a0a0; -fx-font-size: 14px; -fx-font-weight: bold;");
         Button clearLogBtn = new Button("清空");
-        clearLogBtn.setStyle("-fx-background-color: #e74c3c; -fx-text-fill: white; -fx-font-size: 11px;");
+        clearLogBtn.setStyle("-fx-background-color: #e74c3c; -fx-text-fill: white; -fx-font-size: 11px; -fx-background-radius: 4;");
         clearLogBtn.setOnAction(e -> logArea.clear());
         logHeader.getChildren().addAll(logLabel, clearLogBtn);
 
@@ -508,8 +634,9 @@ public class YLiveApp extends Application {
 
     private VBox createPanel(String title) {
         VBox panel = new VBox(10);
-        panel.setStyle("-fx-background-color: white; -fx-padding: 15; -fx-border-radius: 8; " +
-                "-fx-background-radius: 8; -fx-border-color: #dcdcdc;");
+        panel.setStyle("-fx-background-color: white; -fx-padding: 15; -fx-border-radius: 10; " +
+                "-fx-background-radius: 10; -fx-border-color: #dcdcdc; -fx-border-width: 1; " +
+                "-fx-effect: dropshadow(gaussian, rgba(0,0,0,0.06), 8, 0, 0, 3);");
         Label titleLabel = new Label(title);
         titleLabel.setStyle("-fx-font-size: 16px; -fx-font-weight: bold; -fx-text-fill: #2c3e50;");
         panel.getChildren().add(titleLabel);
@@ -518,7 +645,34 @@ public class YLiveApp extends Application {
 
     private Button createButton(String text, String color) {
         Button btn = new Button(text);
-        btn.setStyle("-fx-background-color: " + color + "; -fx-text-fill: white; -fx-font-weight: bold; -fx-cursor: hand; -fx-padding: 8 16;");
+        btn.setStyle(
+                "-fx-background-color: " + color + "; " +
+                        "-fx-text-fill: white; " +
+                        "-fx-font-weight: bold; " +
+                        "-fx-cursor: hand; " +
+                        "-fx-padding: 8 16; " +
+                        "-fx-background-radius: 6; " +
+                        "-fx-border-radius: 6;"
+        );
+        btn.setOnMouseEntered(e -> btn.setStyle(
+                "-fx-background-color: " + color + "; " +
+                        "-fx-text-fill: white; " +
+                        "-fx-font-weight: bold; " +
+                        "-fx-cursor: hand; " +
+                        "-fx-padding: 8 16; " +
+                        "-fx-background-radius: 6; " +
+                        "-fx-border-radius: 6; " +
+                        "-fx-opacity: 0.85;"
+        ));
+        btn.setOnMouseExited(e -> btn.setStyle(
+                "-fx-background-color: " + color + "; " +
+                        "-fx-text-fill: white; " +
+                        "-fx-font-weight: bold; " +
+                        "-fx-cursor: hand; " +
+                        "-fx-padding: 8 16; " +
+                        "-fx-background-radius: 6; " +
+                        "-fx-border-radius: 6;"
+        ));
         return btn;
     }
 
@@ -532,6 +686,7 @@ public class YLiveApp extends Application {
             log("❌ 创建目录失败: " + e.getMessage());
         }
 
+        loadCustomFont();
         checkSystemFonts();
         setupEvents();
         updateUrls();
@@ -545,6 +700,23 @@ public class YLiveApp extends Application {
         log("   3. 复制推流码到OBS");
         log("   4. OBS推流");
         log("   5. 点击 '启动转码' 开始字幕烧录");
+    }
+
+    // ==================== 加载自定义字体 ====================
+    private void loadCustomFont() {
+        try {
+            String fontPath = config.fontsDir + "/SourceHanSansCN-Bold.otf";
+            File fontFile = new File(fontPath);
+            if (fontFile.exists()) {
+                Font.loadFont(new FileInputStream(fontFile), 14);
+                log("✅ 加载自定义字体: SourceHanSansCN-Bold.otf");
+            } else {
+                log("⚠️ 自定义字体未找到: " + fontPath);
+                log("💡 请将 SourceHanSansCN-Bold.otf 放到: " + config.fontsDir);
+            }
+        } catch (Exception e) {
+            log("⚠️ 加载字体失败: " + e.getMessage());
+        }
     }
 
     private void getLocalIP() {
@@ -573,22 +745,26 @@ public class YLiveApp extends Application {
 
     // ==================== 检查系统字体 ====================
     private void checkSystemFonts() {
-        String[] paths;
+        String fontPath = config.fontsDir + "/SourceHanSansCN-Bold.otf";
+        if (Files.exists(Paths.get(fontPath))) {
+            config.fontPath = fontPath;
+            fontPathField.setText(fontPath);
+            log("✅ 找到字体: SourceHanSansCN-Bold.otf");
+            return;
+        }
 
+        String[] paths;
         if (isWindows) {
             paths = new String[]{
                     "C:/Windows/Fonts/msyh.ttf",
-                    "C:/Windows/Fonts/SimHei.ttf",
-                    "C:/Windows/Fonts/SourceHanSansSC-Regular.otf"
+                    "C:/Windows/Fonts/SimHei.ttf"
             };
         } else if (isMac) {
             paths = new String[]{
-                    "/System/Library/Fonts/PingFang.ttc",
-                    "/System/Library/Fonts/STHeiti Light.ttc"
+                    "/System/Library/Fonts/PingFang.ttc"
             };
         } else {
             paths = new String[]{
-                    config.fontsDir + "/SourceHanSansCN-Bold.otf",
                     "/usr/share/fonts/truetype/wqy/wqy-microhei.ttc",
                     "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"
             };
@@ -603,12 +779,8 @@ public class YLiveApp extends Application {
             }
         }
 
-        // 如果思源黑体没找到，提示下载
-        if (!isWindows && !isMac) {
-            log("ℹ️ 未找到思源黑体，请下载放到: " + config.fontsDir);
-            log("💡 下载地址: https://github.com/adobe-fonts/source-han-sans/releases");
-        }
-        log("ℹ️ 将使用系统默认字体");
+        log("⚠️ 未找到字体文件，将使用系统默认字体");
+        log("💡 请将 SourceHanSansCN-Bold.otf 放到: " + config.fontsDir);
     }
 
     private void setupEvents() {
@@ -757,7 +929,6 @@ public class YLiveApp extends Application {
 
         executor.submit(() -> {
             try {
-                // 1. FFmpeg 推空流（不带推流码）
                 log("🔄 正在初始化推流...");
                 ProcessBuilder ffpb = new ProcessBuilder(
                         ffmpegPath,
@@ -774,7 +945,6 @@ public class YLiveApp extends Application {
                 ffp.waitFor(3, TimeUnit.SECONDS);
                 ffp.destroyForcibly();
 
-                // 2. 通过 API 获取真实的 channel key
                 log("📡 正在获取推流密钥...");
                 String realKey = getKeyFromAPI(apiPort, stream);
 
@@ -878,7 +1048,6 @@ public class YLiveApp extends Application {
             return;
         }
 
-        // 清理残留进程
         try {
             String livegoName = getLivegoName();
             String killCmd = isWindows ? "taskkill /F /IM " + livegoName : "pkill -f " + livegoName;
@@ -1016,7 +1185,6 @@ public class YLiveApp extends Application {
             livegoProcess = null;
         }
 
-        // 强制杀死残留进程
         try {
             String livegoName = getLivegoName();
             String killCmd = isWindows ? "taskkill /F /IM " + livegoName : "pkill -f " + livegoName;
@@ -1098,20 +1266,21 @@ public class YLiveApp extends Application {
         cmd.add("-i");
         cmd.add("http://127.0.0.1:7001/" + config.streamName + "/" + config.streamName + ".flv");
 
-        // 字体路径 - 跨平台
         String fontPath = config.fontPath;
         if (fontPath.isEmpty()) {
-            if (isWindows) {
-                fontPath = "C:/Windows/Fonts/SimHei.ttf";
-            } else if (isMac) {
-                fontPath = "/System/Library/Fonts/PingFang.ttc";
-            } else {
-                fontPath = config.fontsDir + "/SourceHanSansCN-Bold.otf";
+            fontPath = config.fontsDir + "/SourceHanSansCN-Bold.otf";
+            if (!Files.exists(Paths.get(fontPath))) {
+                if (isWindows) {
+                    fontPath = "C:/Windows/Fonts/SimHei.ttf";
+                } else if (isMac) {
+                    fontPath = "/System/Library/Fonts/PingFang.ttc";
+                } else {
+                    fontPath = "/usr/share/fonts/truetype/wqy/wqy-microhei.ttc";
+                }
             }
         }
         fontPath = fontPath.replace("\\", "/");
 
-        // 使用 textfile 方式
         try {
             Path subtitleFile = Paths.get("./subtitle.txt");
             Files.writeString(subtitleFile, config.subtitleText, StandardCharsets.UTF_8);
@@ -1125,7 +1294,6 @@ public class YLiveApp extends Application {
             cmd.add("-vf");
             cmd.add(filter);
         } catch (IOException e) {
-            // 降级方案：替换特殊字符
             String cleanText = config.subtitleText
                     .replace("©", "(c)")
                     .replace("\"", "\\\"")
