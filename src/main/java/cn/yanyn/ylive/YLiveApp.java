@@ -280,7 +280,7 @@ public class YLiveApp extends Application {
         contentArea.setSpacing(10);
 
         // 标题
-        Label title = new Label("🎬 Y Live - RTMP→HLV 穿透工具 v1.0");
+        Label title = new Label("");
         title.setStyle("-fx-font-size: 22px; -fx-font-weight: bold; -fx-text-fill: #1a237e;");
         title.setAlignment(Pos.CENTER);
         title.setMaxWidth(Double.MAX_VALUE);
@@ -1282,22 +1282,26 @@ public class YLiveApp extends Application {
         fontPath = fontPath.replace("\\", "/");
 
         try {
+            // 使用相对路径而不是绝对路径
             Path subtitleFile = Paths.get("./subtitle.txt");
             Files.writeString(subtitleFile, config.subtitleText, StandardCharsets.UTF_8);
-            String absPath = subtitleFile.toAbsolutePath().toString().replace("\\", "/");
 
+            // 改用相对路径，不要用绝对路径
             String filter = String.format(
-                    "drawtext=textfile='%s':fontfile='%s':x=10:y=H-th-30:fontcolor=%s:fontsize=%d%s",
-                    absPath, fontPath, config.fontColor, config.fontSize,
+                    "drawtext=textfile='subtitle.txt':fontfile='%s':x=10:y=H-th-30:fontcolor=%s:fontsize=%d%s",
+                    fontPath, config.fontColor, config.fontSize,
                     config.shadowEnabled ? ":shadowx=2:shadowy=2" : ""
             );
             cmd.add("-vf");
             cmd.add(filter);
+
+            log("📝 使用字幕文件: subtitle.txt");
         } catch (IOException e) {
             String cleanText = config.subtitleText
                     .replace("©", "(c)")
                     .replace("\"", "\\\"")
-                    .replace(":", "\\:");
+                    .replace(":", "\\:")
+                    .replace("'", "\\'");
             String filter = String.format(
                     "drawtext=text='%s':fontfile='%s':x=10:y=H-th-30:fontcolor=%s:fontsize=%d%s",
                     cleanText, fontPath, config.fontColor, config.fontSize,
