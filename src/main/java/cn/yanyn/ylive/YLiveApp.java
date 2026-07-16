@@ -37,7 +37,7 @@ public class YLiveApp extends Application {
 
     // ==================== UI组件 ====================
     private TextField rtmpPortField, streamNameField, subtitleTextField, fontPathField;
-    private TextField hlsPortField, flvPortField, apiPortField;
+    private TextField hlsPortField, flvPortField, apiPortField, httpPortField;
     private TextField frpConfigPathField;
     private Label pushUrlLabel, rtmpStatusLabel, hlsUrlLabel, fontSizeLabel, connectionStatusLabel;
     private Label frpStatusLabel;
@@ -85,13 +85,13 @@ public class YLiveApp extends Application {
         int hlsPort = 7002;
         int flvPort = 7001;
         int apiPort = 8090;
+        int httpPort = 8080;
         String streamName = "live";
         String subtitleText = "深水6";
         String fontPath = "./fonts/SourceHanSansCN-Bold.otf";
         int fontSize = 24;
         String fontColor = "#FFFFFF";
         boolean shadowEnabled = true;
-        int httpPort = 8080;
         String hlsDir = "./hls";
         String livegoDir = "./libs/livego";
         String ffmpegDir = "./libs/FFmpeg/bin";
@@ -123,7 +123,6 @@ public class YLiveApp extends Application {
         checkLivego();
         checkFFmpeg();
 
-        // 创建圆润透明窗口
         createUI(stage);
         initializeApp();
 
@@ -180,6 +179,23 @@ public class YLiveApp extends Application {
         String livegoName = getLivegoName();
         String livegoExe = config.livegoDir + "/" + livegoName;
 
+        // Linux 下尝试多个路径
+        if (isLinux) {
+            String[] linuxPaths = {
+                    config.livegoDir + "/livego",
+                    "./livego",
+                    "/usr/local/bin/livego",
+                    "/usr/bin/livego"
+            };
+            for (String path : linuxPaths) {
+                if (Files.exists(Paths.get(path))) {
+                    livegoExe = path;
+                    config.livegoDir = Paths.get(path).getParent().toString();
+                    break;
+                }
+            }
+        }
+
         if (Files.exists(Paths.get(livegoExe))) {
             log("✅ livego已就绪: " + livegoExe);
             if (!isWindows) {
@@ -188,23 +204,16 @@ public class YLiveApp extends Application {
         } else {
             log("⚠ livego未找到，请下载到: " + config.livegoDir);
             log("💡 下载地址: https://github.com/gwuhaolin/livego/releases");
-            Platform.runLater(() -> {
-                Alert alert = new Alert(Alert.AlertType.WARNING);
-                alert.setTitle("livego未找到");
-                alert.setHeaderText("请下载livego");
-                alert.setContentText("""
-                    livego是RTMP服务器组件。
-
-                    请从以下地址下载对应平台版本：
-                    https://github.com/gwuhaolin/livego/releases
-
-                    Windows: livego_windows_amd64.exe
-                    Linux: livego
-                    macOS: livego_macos
-
-                    放到: """ + config.livegoDir);
-                alert.showAndWait();
-            });
+            // 尝试使用系统命令
+            try {
+                Process p = new ProcessBuilder("livego", "-h").start();
+                if (p.waitFor(3, TimeUnit.SECONDS) && p.exitValue() == 0) {
+                    livegoExe = "livego";
+                    config.livegoDir = "";
+                    log("✅ 使用系统livego命令");
+                    return;
+                }
+            } catch (Exception e) {}
         }
     }
 
@@ -270,17 +279,17 @@ public class YLiveApp extends Application {
         );
         mainContainer.setPadding(new Insets(5));
 
-        // ===== 自定义标题栏 =====
+        // 自定义标题栏
         HBox titleBar = createTitleBar(stage);
         mainContainer.getChildren().add(titleBar);
 
-        // ===== 内容区域 =====
+        // 内容区域
         VBox contentArea = new VBox();
         contentArea.setStyle("-fx-background-color: transparent; -fx-padding: 0 10 10 10;");
         contentArea.setSpacing(10);
 
         // 标题
-        Label title = new Label("");
+        Label title = new Label("🎬 Y Live v1.0.6");
         title.setStyle("-fx-font-size: 22px; -fx-font-weight: bold; -fx-text-fill: #1a237e;");
         title.setAlignment(Pos.CENTER);
         title.setMaxWidth(Double.MAX_VALUE);
@@ -332,7 +341,7 @@ public class YLiveApp extends Application {
         stage.setScene(scene);
     }
 
-    // ===== 自定义标题栏 =====
+    // 自定义标题栏
     private HBox createTitleBar(Stage stage) {
         HBox titleBar = new HBox();
         titleBar.setAlignment(Pos.CENTER_LEFT);
@@ -342,7 +351,6 @@ public class YLiveApp extends Application {
                         "-fx-background-radius: 15 15 0 0;"
         );
 
-        // 标题文字
         Label titleLabel = new Label("Y Live");
         titleLabel.setStyle(
                 "-fx-font-size: 16px; " +
@@ -351,11 +359,9 @@ public class YLiveApp extends Application {
         );
         HBox.setHgrow(titleLabel, Priority.ALWAYS);
 
-        // 最小化按钮
         Button minBtn = createTitleButton("─", "#f1f2f6", "#dfe4ea");
         minBtn.setOnAction(e -> stage.setIconified(true));
 
-        // 最大化按钮
         Button maxBtn = createTitleButton("☐", "#f1f2f6", "#dfe4ea");
         maxBtn.setOnAction(e -> {
             if (stage.isMaximized()) {
@@ -365,7 +371,6 @@ public class YLiveApp extends Application {
             }
         });
 
-        // 关闭按钮
         Button closeBtn = createTitleButton("✕", "#ff4757", "#ff6b81");
         closeBtn.setOnAction(e -> shutdown());
 
@@ -408,7 +413,7 @@ public class YLiveApp extends Application {
         return btn;
     }
 
-    // ==================== 面板创建方法 ====================
+    // ==================== 创建RTMP面板 ====================
     private VBox createRtmpPanel() {
         VBox panel = createPanel("📡 RTMP服务");
 
@@ -435,6 +440,15 @@ public class YLiveApp extends Application {
                 new Label("HLS端口:"), hlsPortField,
                 new Label("FLV端口:"), flvPortField,
                 new Label("API端口:"), apiPortField
+        );
+
+        // 转码输出端口
+        HBox httpPortBox = new HBox(10);
+        httpPortBox.setAlignment(Pos.CENTER_LEFT);
+        httpPortField = new TextField("8080");
+        httpPortField.setPrefWidth(80);
+        httpPortBox.getChildren().addAll(
+                new Label("转码输出端口:"), httpPortField
         );
 
         HBox statusBox = new HBox(10);
@@ -514,7 +528,7 @@ public class YLiveApp extends Application {
         infoBox.setPadding(new Insets(8, 0, 5, 0));
         infoBox.getChildren().addAll(infoTitle, keyBox, pushBox, hlsBox, flvBox, tipLabel);
 
-        panel.getChildren().addAll(portBox, hlsPortBox, statusBox, btnBox, getKeyBox, infoBox);
+        panel.getChildren().addAll(portBox, hlsPortBox, httpPortBox, statusBox, btnBox, getKeyBox, infoBox);
         return panel;
     }
 
@@ -842,6 +856,7 @@ public class YLiveApp extends Application {
         String stream = streamNameField.getText().trim();
         String hlsPort = hlsPortField != null ? hlsPortField.getText().trim() : "7002";
         String flvPort = flvPortField != null ? flvPortField.getText().trim() : "7001";
+        String httpPort = httpPortField != null ? httpPortField.getText().trim() : "8080";
 
         if (!port.isEmpty() && !stream.isEmpty()) {
             String url = "rtmp://" + localIP + ":" + port + "/" + stream;
@@ -960,8 +975,8 @@ public class YLiveApp extends Application {
 
                 currentStreamKey = realKey;
 
-                final String finalKey = realKey;
-                final String rtmpUrl = "rtmp://" + localIP + ":" + rtmpPort + "/" + stream;
+                String finalKey = realKey;
+                String rtmpUrl = "rtmp://" + localIP + ":" + rtmpPort + "/" + stream;
                 Platform.runLater(() -> {
                     streamKeyDisplayField.setText(finalKey);
                     log("✅ 推流码获取成功!");
@@ -1048,9 +1063,10 @@ public class YLiveApp extends Application {
             return;
         }
 
+        // 清理残留进程
         try {
             String livegoName = getLivegoName();
-            String killCmd = isWindows ? "taskkill /F /IM " + livegoName : "pkill -f " + livegoName;
+            String killCmd = isWindows ? "taskkill /F /IM " + livegoName : "pkill -f livego";
             Process p = Runtime.getRuntime().exec(killCmd);
             p.waitFor(2, TimeUnit.SECONDS);
             log("🧹 已清理残留的livego进程");
@@ -1070,21 +1086,48 @@ public class YLiveApp extends Application {
             String stream = streamNameField.getText().trim();
 
             try (ServerSocket ss = new ServerSocket(rtmpPort)) {
+                // 端口可用
             } catch (IOException e) {
                 log("❌ RTMP端口 " + rtmpPort + " 已被占用");
                 showAlert("端口冲突", "RTMP端口 " + rtmpPort + " 已被占用，请更换端口");
                 return;
             }
 
+            // 确定 livego 路径
             String livegoName = getLivegoName();
             String livegoExe = config.livegoDir + "/" + livegoName;
-            if (!Files.exists(Paths.get(livegoExe))) {
-                log("❌ livego未找到");
-                showAlert("livego未找到", "请下载livego到: " + config.livegoDir);
-                return;
+
+            // Linux 下尝试多个路径
+            if (isLinux && !Files.exists(Paths.get(livegoExe))) {
+                String[] altPaths = {"./livego", "/usr/local/bin/livego", "/usr/bin/livego"};
+                for (String p : altPaths) {
+                    if (Files.exists(Paths.get(p))) {
+                        livegoExe = p;
+                        break;
+                    }
+                }
             }
 
-            if (!isWindows) {
+            if (!Files.exists(Paths.get(livegoExe))) {
+                // 尝试使用系统命令
+                try {
+                    Process p = new ProcessBuilder("livego", "-h").start();
+                    if (p.waitFor(3, TimeUnit.SECONDS) && p.exitValue() == 0) {
+                        livegoExe = "livego";
+                        log("✅ 使用系统livego命令");
+                    } else {
+                        log("❌ livego未找到");
+                        showAlert("livego未找到", "请下载livego到: " + config.livegoDir);
+                        return;
+                    }
+                } catch (Exception ex) {
+                    log("❌ livego未找到");
+                    showAlert("livego未找到", "请下载livego到: " + config.livegoDir);
+                    return;
+                }
+            }
+
+            if (!isWindows && !livegoExe.equals("livego")) {
                 new File(livegoExe).setExecutable(true);
             }
 
@@ -1093,15 +1136,28 @@ public class YLiveApp extends Application {
             log("📺 HLS端口: " + hlsPort);
             log("📺 HTTP-FLV端口: " + flvPort);
 
-            ProcessBuilder pb = new ProcessBuilder(
-                    livegoExe,
-                    "--rtmp_addr", ":" + rtmpPort,
-                    "--hls_addr", ":" + hlsPort,
-                    "--httpflv_addr", ":" + flvPort,
-                    "--api_addr", ":" + apiPort,
-                    "--level", "info"
-            );
-            pb.directory(new File(config.livegoDir));
+            ProcessBuilder pb;
+            if (livegoExe.equals("livego")) {
+                pb = new ProcessBuilder(
+                        "livego",
+                        "--rtmp_addr", ":" + rtmpPort,
+                        "--hls_addr", ":" + hlsPort,
+                        "--httpflv_addr", ":" + flvPort,
+                        "--api_addr", ":" + apiPort,
+                        "--level", "info"
+                );
+                pb.directory(new File("."));
+            } else {
+                pb = new ProcessBuilder(
+                        livegoExe,
+                        "--rtmp_addr", ":" + rtmpPort,
+                        "--hls_addr", ":" + hlsPort,
+                        "--httpflv_addr", ":" + flvPort,
+                        "--api_addr", ":" + apiPort,
+                        "--level", "info"
+                );
+                pb.directory(new File(config.livegoDir));
+            }
             pb.redirectErrorStream(true);
 
             livegoProcess = pb.start();
@@ -1117,7 +1173,6 @@ public class YLiveApp extends Application {
             stopRtmpBtn.setDisable(false);
             getStreamKeyBtn.setDisable(false);
 
-            final String fixedKey = currentStreamKey.isEmpty() ? "请点击获取推流码" : currentStreamKey;
             Platform.runLater(() -> {
                 if (!currentStreamKey.isEmpty()) {
                     streamKeyDisplayField.setText(currentStreamKey);
@@ -1146,7 +1201,7 @@ public class YLiveApp extends Application {
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
             String line;
             while ((line = reader.readLine()) != null) {
-                final String logLine = line;
+                String logLine = line;
                 Platform.runLater(() -> {
                     log("[livego] " + logLine);
                     if (logLine.contains("publish") || logLine.contains("Publish")) {
@@ -1185,9 +1240,9 @@ public class YLiveApp extends Application {
             livegoProcess = null;
         }
 
+        // 强制杀死残留进程
         try {
-            String livegoName = getLivegoName();
-            String killCmd = isWindows ? "taskkill /F /IM " + livegoName : "pkill -f " + livegoName;
+            String killCmd = isWindows ? "taskkill /F /IM livego_windows_amd64.exe" : "pkill -f livego";
             Process p = Runtime.getRuntime().exec(killCmd);
             p.waitFor(2, TimeUnit.SECONDS);
         } catch (Exception e) {}
@@ -1230,6 +1285,7 @@ public class YLiveApp extends Application {
             config.fontSize = (int)fontSizeSlider.getValue();
             config.fontColor = toHex(fontColorPicker.getValue());
             config.shadowEnabled = shadowCheckBox.isSelected();
+            config.httpPort = Integer.parseInt(httpPortField.getText().trim());
 
             startHttpServer();
             Thread.sleep(2000);
@@ -1282,11 +1338,9 @@ public class YLiveApp extends Application {
         fontPath = fontPath.replace("\\", "/");
 
         try {
-            // 使用相对路径而不是绝对路径
             Path subtitleFile = Paths.get("./subtitle.txt");
             Files.writeString(subtitleFile, config.subtitleText, StandardCharsets.UTF_8);
 
-            // 改用相对路径，不要用绝对路径
             String filter = String.format(
                     "drawtext=textfile='subtitle.txt':fontfile='%s':x=10:y=H-th-30:fontcolor=%s:fontsize=%d%s",
                     fontPath, config.fontColor, config.fontSize,
@@ -1361,7 +1415,7 @@ public class YLiveApp extends Application {
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
             String line;
             while ((line = reader.readLine()) != null) {
-                final String logLine = line;
+                String logLine = line;
                 Platform.runLater(() -> {
                     if (logLine.contains("error") || logLine.contains("Error")) {
                         log("[FFmpeg] ❌ " + logLine);
@@ -1382,14 +1436,38 @@ public class YLiveApp extends Application {
                 return;
             }
 
+            int port = config.httpPort;
+
+            try (ServerSocket ss = new ServerSocket(port)) {
+                // 端口可用
+            } catch (IOException e) {
+                log("❌ 转码输出端口 " + port + " 已被占用");
+                showAlert("端口冲突", "转码输出端口 " + port + " 已被占用，请更换端口");
+                return;
+            }
+
+            // 确保 HLS 目录存在
             String hlsPath = config.hlsDir;
             File hlsDir = new File(hlsPath);
             if (!hlsDir.exists()) {
-                hlsDir.mkdirs();
+                if (hlsDir.mkdirs()) {
+                    log("📁 创建HLS目录: " + hlsPath);
+                } else {
+                    log("❌ 创建HLS目录失败: " + hlsPath);
+                    return;
+                }
             }
+
+            // 检查目录是否可写
+            if (!hlsDir.canWrite()) {
+                log("❌ HLS目录不可写: " + hlsPath);
+                showAlert("权限错误", "HLS目录不可写，请检查权限");
+                return;
+            }
+
             log("📁 托管HLS目录: " + hlsPath);
 
-            jettyServer = new Server(config.httpPort);
+            jettyServer = new Server(port);
             ServletContextHandler context = new ServletContextHandler(ServletContextHandler.SESSIONS);
             context.setContextPath("/");
             context.setResourceBase(hlsDir.getAbsolutePath());
@@ -1397,7 +1475,7 @@ public class YLiveApp extends Application {
 
             jettyServer.setHandler(context);
             jettyServer.start();
-            log("✅ HTTP服务器已启动，端口: " + config.httpPort);
+            log("✅ HTTP服务器已启动，端口: " + port);
 
         } catch (Exception e) {
             log("❌ HTTP服务器启动失败: " + e.getMessage());
@@ -1496,7 +1574,7 @@ public class YLiveApp extends Application {
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
             String line;
             while ((line = reader.readLine()) != null) {
-                final String logLine = line;
+                String logLine = line;
                 Platform.runLater(() -> {
                     if (logLine.contains("error") || logLine.contains("Error")) {
                         log("[FRP] ❌ " + logLine);
